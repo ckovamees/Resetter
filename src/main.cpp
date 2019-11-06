@@ -2,12 +2,14 @@
 #include <WiFi.h>
 #include <WiFiManager.h>
 #include <HTTPClient.h>
+#include <HTTPUpdate.h>
 #include <Update.h>
 
 #include <Ticker.h>
 #include <Preferences.h>
 #include <OneButton.h>
 
+#include "certs.h"
 
 #define LED_PIN 14
 #define RELAY_PIN 13
@@ -159,8 +161,11 @@ void checkReset()
 
 void checkOTA()
 {
-    HTTPClient http;
-    http.begin(FIRMEWARE_VERSION_URL); 
+    // Set SSL and create client
+    WiFiClientSecure client;
+    client.setCACert(DIGICERT_ROOT_CA); 
+    HTTPClient http;    
+    http.begin(client, FIRMEWARE_VERSION_URL);    
     int httpCode = http.GET();
     Serial.println("Version check HTTP request result: " + String(httpCode));
 
