@@ -9,8 +9,12 @@
 #include <OneButton.h>
 
 
-#define LED_PIN 13
+#define LED_PIN 14
+#define RELAY_PIN 13
 #define PUSH_BUTTON_PIN 12
+
+#define CONFIGURE_LED_TIME 0.2
+#define PENDING_LED_TIME 1
 
 //Preferences preferences;
 Ticker ledTicker;
@@ -48,7 +52,7 @@ void configModeCallback (WiFiManager *myWiFiManager) {
     // If you used auto generated SSID, print it
     Serial.println(myWiFiManager->getConfigPortalSSID());
     // Entered config mode, make led toggle faster
-    ledTicker.attach(0.2, ledTick);
+    ledTicker.attach(CONFIGURE_LED_TIME, ledTick);
 }
 
 void buttonPressed()
@@ -77,12 +81,11 @@ void setup()
     
     //set led pin as output
     pinMode(LED_PIN, OUTPUT);
-    //pinMode(PUSH_BUTTON_PIN, INPUT_PULLUP); 
+    pinMode(RELAY_PIN, OUTPUT);
 
     Serial.println("Startup");
 
     WiFiManager wm;
-
     Serial.println("Create WiFiManager");
     
     // Set callback that gets called when connecting to previous WiFi fails, and enters Access Point mode
@@ -99,8 +102,10 @@ void setup()
 
     // Set indicator LED to Connected
     ledTicker.detach();    
-    digitalWrite(LED_PIN, LOW);
+    digitalWrite(LED_PIN, HIGH);
     Serial.println("Wifi connected");
+
+    digitalWrite(RELAY_PIN, LOW);
 
     // Setup button actions and check interval
     buttonTicker.attach(0.1, buttonTick);  
@@ -117,6 +122,8 @@ void setup()
     if (state == Pending) {
         pendingRetries = preferences.getInt("retries", 0);
         Serial.println("Retries: " + String(pendingRetries));
+
+        ledTicker.attach(PENDING_LED_TIME, ledTick);
     }
     if (state == Restart)
     {
@@ -149,16 +156,6 @@ void checkReset()
         delay(1000);
     }     
 }
-
-// bool timeForOTACheck()
-// {
-//     preferences.begin("RESETTER");
-//     int count = preferences.getInt("OTACheck", 0);      
-//     Serial.println("OTA Check counter: " + String(count));    
-//     if (count++ > CHECKOTATIME)
-//     preferences.putInt("count", count);
-//     preferences.end();
-// }
 
 void checkOTA()
 {
@@ -258,9 +255,14 @@ void loop()
     // Check states
     switch (state)
     {
-    case Good:        
+    case Good:    
+        ledTicker.detach();
+        digitalWrite(LED_PIN, HIGH);
         break;
     case Pending:
+        // Setup slow blinking led
+        ledTicker.attach(PENDING_LED_TIME, ledTick);
+
         waitPeriod = 5000;
         if (pendingRetries > RetriesBeforeAction) {
             state = Restart;
