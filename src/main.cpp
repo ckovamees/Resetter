@@ -9,6 +9,8 @@
 #include <Preferences.h>
 #include <OneButton.h>
 
+#include <esp_ota_ops.h>
+
 #include "certs.h"
 
 #define LED_PIN 14
@@ -16,7 +18,8 @@
 #define PUSH_BUTTON_PIN 12
 
 #define CONFIGURE_LED_TIME 0.2
-#define PENDING_LED_TIME 1
+#define UPDATE_LED_TIME 1
+#define PENDING_LED_TIME 3
 
 //Preferences preferences;
 Ticker ledTicker;
@@ -34,7 +37,7 @@ int pendingRetries = 0;
 static int RetriesBeforeAction = 4;
 State state = Good;
 
-static String VERSION = "2019103102";
+static String VERSION = "2019110100";
 static String FIRMEWARE_VERSION_URL = "https://raw.githubusercontent.com/ckovamees/OTA/master/resetter/firmware.ver";
 
 void ledTick()
@@ -44,15 +47,14 @@ void ledTick()
 
 void buttonTick()
 {
-    button.tick();    
+    button.tick();
 }
 
 // Gets called when WiFiManager enters configuration mode
 void configModeCallback (WiFiManager *myWiFiManager) {
     Serial.println("Entered config mode");
-    Serial.println(WiFi.softAPIP());
     // If you used auto generated SSID, print it
-    Serial.println(myWiFiManager->getConfigPortalSSID());
+    Serial.println("Connect to Wifi for configuration: " +myWiFiManager->getConfigPortalSSID() +", open " + WiFi.softAPIP() + " in a browser");
     // Entered config mode, make led toggle faster
     ledTicker.attach(CONFIGURE_LED_TIME, ledTick);
 }
@@ -65,6 +67,7 @@ void buttonPressed()
 void buttonDoublePressed()
 {
     Serial.println("Double pressed");
+    Serial.print("Can Rollback: " + Update.canRollBack());
 }
 
 void buttonLongPressed()
@@ -86,6 +89,13 @@ void setup()
     pinMode(RELAY_PIN, OUTPUT);
 
     Serial.println("Startup");
+
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    Serial.println("Running partition: " + String(running->label));
+
+
+    // Display the running partition
+    ESP_LOGI(TAG, "Running partition: %s", running->label);
 
     WiFiManager wm;
     Serial.println("Create WiFiManager");
@@ -181,9 +191,11 @@ void checkOTA()
         long newVersion = payload.toInt();
         long thisVersion = VERSION.toInt();
         Serial.println("Installed version: " + String(thisVersion) + ", new version: " + String(newVersion));
-        
+
         if (newVersion>thisVersion)
         {
+            ledTicker.attach(UPDATE_LED_TIME, ledTick);
+
             // Upgrade
             Serial.println("Upgrade is availabe");
             String binUrl = FIRMEWARE_VERSION_URL;
